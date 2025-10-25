@@ -135,45 +135,102 @@
       overflow: hidden;
     }
 
-    /* floating scoreboard (progress chips) */
+    /* floating scoreboard (collapsible) */
     #scorePanel {
       position: fixed;
       right: 12px;
-      bottom: 72px; /* leave room for audio bar at bottom and fat thumbs */
+      bottom: 72px;
       z-index: 9999;
+      box-sizing: border-box;
+      font-size: 14px;
+      line-height: 1.3;
+      font-family: inherit;
+      /* start hidden until showScorePanel(true) */
       display: none;
-      width: min(300px, 80vw);
-      max-height: 40vh;
-      overflow-y: auto;
+    }
+
+    .scorePanel-collapsed {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 90px;
+      max-width: 40vw;
+      background: #0f172a;
+      color: #fff;
+      border-radius: 999px;
+      padding: 10px 12px;
+      font-weight: 800;
+      font-size: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+      border: 2px solid #0f172a;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .scorePanel-expanded {
       background: #fff;
       border: 2px solid #cfe1ff;
       border-radius: 12px;
       padding: 10px;
       box-shadow: 0 8px 24px rgba(0,0,0,.12);
-      box-sizing: border-box;
-      font-size: 14px;
+      width: min(300px, 80vw);
+      max-height: 40vh;
+      overflow-y: auto;
+      display: grid;
+      gap: 6px;
     }
+
+    /* header row in expanded view */
+    #scorePanel .sp-topline {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
     #scorePanel .sp-head {
       font-weight: 900;
       font-size: 16px;
-      margin: 0 0 6px;
+      margin: 0;
       color: #0f172a;
+      line-height: 1.2;
     }
+
+    .scorePanel-close {
+      background: transparent;
+      border: none;
+      color: #64748b;
+      font-size: 16px;
+      line-height: 1;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 6px;
+    }
+
+    .scorePanel-close:active {
+      background: #e2e8f0;
+    }
+
     #scorePanel .sp-body {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
     }
+
     #scorePanel .sp-col h4 {
       margin: 0 0 6px;
       font-size: 14px;
       line-height: 1.2;
+      font-weight: 700;
     }
+
     .sp-list {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
     }
+
     .pill {
       display: inline-flex;
       align-items: center;
@@ -517,10 +574,14 @@
         max-height: 50vh;
       }
 
-      /* scoreboard bubble slightly smaller on narrow screens */
+      /* scoreboard position/font in mobile */
       #scorePanel {
+        bottom: 140px; /* keep above audio bar / iOS bar */
+        font-size: 13px;
+      }
+      .scorePanel-expanded {
         width: min(260px, 90vw);
-        bottom: 140px; /* sit above iOS bottom bar + audio bar */
+        max-height: 40vh;
         font-size: 13px;
       }
       #scorePanel .sp-head {
@@ -532,6 +593,11 @@
       .pill {
         font-size: 13px;
         padding: 5px 8px;
+      }
+      .scorePanel-collapsed {
+        font-size: 13px;
+        min-width: 80px;
+        padding: 9px 10px;
       }
 
       /* main heading smaller on very small width */
@@ -624,17 +690,29 @@
 
       <div id="statusBadge" aria-live="polite"></div>
 
-      <!-- Score panel (floats; shown only in Practice & Review) -->
+      <!-- Collapsible Score panel -->
       <aside id="scorePanel" aria-live="polite">
-        <div class="sp-head">Practice progress</div>
-        <div class="sp-body">
-          <div class="sp-col">
-            <h4>✔ Correct (<span id="spRightCount">0</span>)</h4>
-            <div id="spRight" class="sp-list"></div>
+        <!-- Collapsed view (default) -->
+        <div id="scorePanelCollapsed" class="scorePanel-collapsed" role="button" tabindex="0">
+          Progress
+        </div>
+
+        <!-- Expanded view -->
+        <div id="scorePanelExpanded" class="scorePanel-expanded" style="display:none;">
+          <div class="sp-topline">
+            <div class="sp-head">Practice progress</div>
+            <button class="scorePanel-close" id="scorePanelCloseBtn" aria-label="Close score panel">✕</button>
           </div>
-          <div class="sp-col">
-            <h4>✖ Incorrect (<span id="spWrongCount">0</span>)</h4>
-            <div id="spWrong" class="sp-list"></div>
+
+          <div class="sp-body">
+            <div class="sp-col">
+              <h4>✔ Correct (<span id="spRightCount">0</span>)</h4>
+              <div id="spRight" class="sp-list"></div>
+            </div>
+            <div class="sp-col">
+              <h4>✖ Incorrect (<span id="spWrongCount">0</span>)</h4>
+              <div id="spWrong" class="sp-list"></div>
+            </div>
           </div>
         </div>
       </aside>
@@ -972,14 +1050,17 @@
       });
     }
 
+    // bulk selection buttons in the control panel
     document.getElementById('selectAll').onclick = (e)=>{
       e.preventDefault();
       document.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked = true);
     };
+
     document.getElementById('clearAll').onclick = (e)=>{
       e.preventDefault();
       document.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked = false);
     };
+
     document.getElementById('selectCyclesOnly').onclick = (e)=>{
       e.preventDefault();
       DB.forEach(c=>selectCycle(c.id,true));
@@ -1025,30 +1106,67 @@
     const reviewGrid   = document.getElementById('reviewGrid');
 
     /* Scoreboard DOM refs */
-    const spPanel      = document.getElementById('scorePanel');
-    const spRight      = document.getElementById('spRight');
-    const spWrong      = document.getElementById('spWrong');
-    const spRightCount = document.getElementById('spRightCount');
-    const spWrongCount = document.getElementById('spWrongCount');
+    const spPanel           = document.getElementById('scorePanel');
+    const spCollapsed       = document.getElementById('scorePanelCollapsed');
+    const spExpanded        = document.getElementById('scorePanelExpanded');
+    const spCloseBtn        = document.getElementById('scorePanelCloseBtn');
+    const spRight           = document.getElementById('spRight');
+    const spWrong           = document.getElementById('spWrong');
+    const spRightCount      = document.getElementById('spRightCount');
+    const spWrongCount      = document.getElementById('spWrongCount');
 
     function showScorePanel(show){
-      if(spPanel) spPanel.style.display = show ? 'block' : 'none';
+      if(!spPanel) return;
+      if(show){
+        // Show just the collapsed pill by default
+        spPanel.style.display = 'block';
+        spCollapsed.style.display = 'flex';
+        spExpanded.style.display = 'none';
+      } else {
+        spPanel.style.display = 'none';
+      }
     }
 
+    function openScoreDetails(){
+      spCollapsed.style.display = 'none';
+      spExpanded.style.display = 'grid';
+    }
+
+    function closeScoreDetails(){
+      spExpanded.style.display = 'none';
+      spCollapsed.style.display = 'flex';
+    }
+
+    // tap the pill to expand
+    spCollapsed.addEventListener('click', openScoreDetails);
+    spCollapsed.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        openScoreDetails();
+      }
+    });
+
+    // tap ✕ to collapse
+    spCloseBtn.addEventListener('click', closeScoreDetails);
+
     function renderScorePanel(state){
-      if(!spPanel || !state) return;
+      if(!state) return;
       const right = state.right || [];
       const wrong = state.wrong || [];
+
       spRightCount.textContent = right.length;
       spWrongCount.textContent = wrong.length;
+
       spRight.innerHTML = '';
       spWrong.innerHTML = '';
+
       right.forEach(({t})=>{
         const el = document.createElement('span');
         el.className='pill good';
         el.textContent = t;
         spRight.appendChild(el);
       });
+
       wrong.forEach(({t})=>{
         const el = document.createElement('span');
         el.className='pill bad';
@@ -1201,7 +1319,9 @@
       writePayload(1, feedbackText);
 
       renderScorePanel(STATE);
-      showScorePanel(false); // hide during summary so nothing covers content
+
+      // hide scoreboard during summary so it doesn't cover summary UI
+      showScorePanel(false);
 
       summaryEl.scrollIntoView({behavior:"smooth", block:"start"});
     }
@@ -1258,6 +1378,8 @@
       summaryEl.style.display='none';
       reviewEl.style.display='none';
       document.getElementById('selectRow').classList.remove('hidden');
+
+      // hide scoreboard in selection
       showScorePanel(false);
 
       // scroll to top of selection controls
@@ -1377,7 +1499,8 @@
 
       summaryEl.style.display = 'none';
       reviewEl.style.display = 'block';
-      showScorePanel(true); // show scoreboard in Review
+
+      showScorePanel(true); // collapsed pill again
       renderScorePanel(STATE);
 
       reviewEl.scrollIntoView({behavior:"smooth", block:"start"});
